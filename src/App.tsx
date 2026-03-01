@@ -156,6 +156,7 @@ export default function App() {
 
     await invoke("stream_prompt", { prompt: input });
     setInput("");
+    console.log(invoke);
   };
 
   /* ================= TTS ================= */
