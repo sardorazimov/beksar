@@ -1,6 +1,6 @@
 // ⚡ BEKSAR FRONTEND FINAL VERSION
 
-import { useEffect, useState, useRef,useContext } from "react";
+import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
