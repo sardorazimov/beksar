@@ -188,6 +188,46 @@ async fn approve_tool(
     Ok(())
 }
 
+async fn text_to_speech(text: String) -> Result<String, String> {
+    let api_key = std::env::var("OPENAI_API_KEY")
+        .map_err(|_| "API key missing".to_string())?;
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("https://api.openai.com/v1/audio/speech")
+        .bearer_auth(api_key)
+        .json(&serde_json::json!({
+            "model": "gpt-4o-mini-tts",
+            "voice": "alloy",
+            "input": text
+        }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+
+    Ok(base64::encode(bytes))
+}
+
+#[tauri::command]
+async fn ask(
+    window: tauri::Window,
+    prompt: String,
+) -> Result<(), String> {
+
+    let api_key = std::env::var("OPENAI_API_KEY")
+        .map_err(|_| "Missing API key".to_string())?;
+
+    let (reply, tokens) = openai::call_openai(&api_key, &prompt).await?;
+
+    window.emit("stream_chunk", reply.clone()).unwrap();
+    window.emit("stream_end", ()).unwrap();
+    window.emit("token_usage", tokens).unwrap();
+
+    Ok(())
+}
 fn main() {
     dotenv().ok();
 

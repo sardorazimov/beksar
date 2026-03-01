@@ -1,299 +1,364 @@
+// ⚡ BEKSAR FRONTEND FINAL VERSION
+
 import { useEffect, useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Terminal, 
-  SendHorizontal, 
-  User, 
-  Bot, 
-  Wrench, 
-  Check, 
-  X, 
-  Zap 
+import {
+  SendHorizontal,
+  User,
+  Bot,
+  Mic,
+  Volume2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Cpu,
+  Activity,
 } from "lucide-react";
 
-type ToolRequest = {
-  name: string;
-  input: string;
-};
+/* ================= TYPES ================= */
 
-// Sohbet geçmişini tutmak için eklendi
 type Message = {
   id: string;
   role: "user" | "agent";
   content: string;
 };
 
-function App() {
+/* ================= COMPONENT ================= */
+
+export default function App() {
+  const [booting, setBooting] = useState(true);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [response, setResponse] = useState(""); // Akan (stream) veri
-  const [messages, setMessages] = useState<Message[]>([]); // Geçmiş mesajlar
-  const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [response, setResponse] = useState("");
 
-  // Yeni mesaj geldiğinde veya stream aktığında otomatik aşağı kaydır
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const [cpuUsage, setCpuUsage] = useState(15);
+  const [memoryUsage, setMemoryUsage] = useState(42);
+
+  const [tokenCount, setTokenCount] = useState(0);
+  const [realTokens, setRealTokens] = useState<number | null>(null);
+
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+
+  const recognitionRef = useRef<any>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  /* ================= MATRIX BOOT ================= */
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, response]);
+    const t = setTimeout(() => setBooting(false), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
-  // Kendi yazdığınız Tauri Listener mantığı (Sohbet geçmişi için hafifçe modifiye edildi)
+  /* ================= STARFIELD BACKGROUND ================= */
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const stars = Array.from({ length: 120 }).map(() => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5,
+      speed: Math.random() * 0.3 + 0.1,
+    }));
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#ffffff";
+      stars.forEach((s) => {
+        s.y += s.speed;
+        if (s.y > canvas.height) s.y = 0;
+
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      requestAnimationFrame(animate);
+    };
+
+    animate();
+  }, []);
+
+  /* ================= FAKE SYSTEM METRICS ================= */
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCpuUsage(Math.floor(Math.random() * 60) + 10);
+      setMemoryUsage(Math.floor(Math.random() * 50) + 30);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /* ================= STREAM EVENTS ================= */
+
   useEffect(() => {
     let unlistenChunk: UnlistenFn;
     let unlistenEnd: UnlistenFn;
-    let unlistenTool: UnlistenFn;
+    let unlistenTokens: UnlistenFn;
 
-    const setupListeners = async () => {
+    const setup = async () => {
       unlistenChunk = await listen<string>("stream_chunk", (event) => {
-        setResponse((prev) => prev + event.payload);
-      });
-
-      unlistenEnd = await listen("stream_end", () => {
-        console.log("Stream finished");
-        // Stream bittiğinde, biriken metni kalıcı mesajlar listesine aktar
-        setResponse((prevResponse) => {
-          if (prevResponse.trim()) {
-            setMessages((prevMsgs) => [
-              ...prevMsgs,
-              { id: Date.now().toString(), role: "agent", content: prevResponse }
-            ]);
-          }
-          return ""; // Stream'i sıfırla
+        setResponse((prev) => {
+          const newText = prev + event.payload;
+          setTokenCount(newText.length);
+          return newText;
         });
       });
 
-      unlistenTool = await listen<any>("tool_request", (event) => {
-        const payload =
-          typeof event.payload === "string"
-            ? JSON.parse(event.payload)
-            : event.payload;
+      unlistenEnd = await listen("stream_end", () => {
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now().toString(), role: "agent", content: response },
+        ]);
 
-        setToolRequest(payload);
+        if (voiceEnabled && response) speak(response);
+        setResponse("");
+      });
+
+      // 🔥 REAL TOKEN EVENT (backend emit ederse)
+      unlistenTokens = await listen<number>("token_usage", (event) => {
+        setRealTokens(event.payload);
       });
     };
 
-    setupListeners().then(funcs => {
-       // Listener'ları kaydet (cleanup için)
-    });
+    setup();
 
     return () => {
       if (unlistenChunk) unlistenChunk();
       if (unlistenEnd) unlistenEnd();
-      if (unlistenTool) unlistenTool();
+      if (unlistenTokens) unlistenTokens();
     };
-  }, []);
+  }, [response, voiceEnabled]);
+
+  /* ================= SEND ================= */
 
   const sendPrompt = async () => {
     if (!input.trim()) return;
 
-    const currentInput = input;
-    // Kullanıcı mesajını ekrana ekle
-    setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: currentInput }]);
-    
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString(), role: "user", content: input },
+    ]);
+
+    await invoke("stream_prompt", { prompt: input });
     setInput("");
-    setResponse("");
-    setToolRequest(null);
-
-    await invoke("stream_prompt", {
-      prompt: currentInput,
-    });
   };
 
-  const approveTool = async () => {
-    if (!toolRequest) return;
-    
-    const req = toolRequest;
-    setToolRequest(null);
+  /* ================= TTS ================= */
 
-    await invoke("approve_tool", {
-      name: req.name,
-      input: req.input,
-    });
+  const speak = (text: string) => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+    speechSynthesis.speak(utter);
   };
 
-  // Animasyon ayarları
-  const messageVariants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+  /* ================= MIC ================= */
+
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) return;
+
+    const rec = new SpeechRecognition();
+    rec.lang = "en-US";
+
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+    };
+
+    rec.onend = () => setIsListening(false);
+
+    recognitionRef.current = rec;
+  }, []);
+
+  const toggleMic = () => {
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
   };
+
+  /* ================= BOOT SCREEN ================= */
+
+  if (booting) {
+    return (
+      <div className="h-screen w-screen bg-black flex items-center justify-center text-green-400 font-mono text-sm">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          Initializing BEKSAR Neural Core...
+        </motion.div>
+      </div>
+    );
+  }
+
+  /* ================= MAIN UI ================= */
 
   return (
-    // Masaüstü uygulamasının tam penceresini kaplayacak yapı
-    <div className="h-screen w-screen bg-[#0a0514] text-white flex flex-col relative overflow-hidden font-sans selection:bg-indigo-500/30">
-      
-      {/* Arkaplan Işık Efektleri */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-indigo-900/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-purple-900/20 blur-[120px] rounded-full pointer-events-none" />
+    <div className="h-screen w-screen flex bg-[#05010a] text-white relative overflow-hidden">
 
-      {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02] backdrop-blur-md window-drag-region">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20 shadow-[0_0_15px_-3px_rgba(79,70,229,0.3)]">
-            <Terminal className="w-5 h-5 text-indigo-400" />
-          </div>
-          <div>
-            <h1 className="text-base font-semibold tracking-wide flex items-center gap-2">
-              BEKSAR
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
-            </h1>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Developer Agent</div>
-          </div>
-        </div>
-      </header>
+      <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-20" />
 
-      {/* Mesajlaşma Alanı */}
-      <main className="relative z-10 flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-        <AnimatePresence initial={false}>
-          {/* Geçmiş Mesajlar */}
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial="hidden"
-              animate="visible"
-              variants={messageVariants}
-              className={`flex items-start gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {msg.role === "agent" && (
-                <div className="w-8 h-8 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Bot className="w-4 h-4 text-indigo-400" />
-                </div>
-              )}
-              
-              <div className={`p-4 max-w-[80%] rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-lg ${
-                msg.role === "agent" 
-                  ? "bg-white/5 border border-white/10 rounded-tl-sm text-gray-200" 
-                  : "bg-indigo-600 border border-indigo-500 rounded-tr-sm text-white shadow-indigo-900/20"
-              }`}>
-                {msg.content}
-              </div>
-
-              {msg.role === "user" && (
-                <div className="w-8 h-8 rounded-full bg-indigo-500 border border-indigo-400 flex items-center justify-center flex-shrink-0 mt-1">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-              )}
-            </motion.div>
-          ))}
-
-          {/* Aktif Stream (Yazılıyor) Alanı */}
-          {response && (
-            <motion.div
-              initial="hidden"
-              animate="visible"
-              variants={messageVariants}
-              className="flex items-start gap-4 justify-start"
-            >
-              <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center flex-shrink-0 mt-1 shadow-[0_0_10px_rgba(79,70,229,0.4)]">
-                <Zap className="w-4 h-4 text-indigo-300 animate-pulse" />
-              </div>
-              
-              <div className="p-4 max-w-[80%] rounded-2xl rounded-tl-sm text-sm leading-relaxed whitespace-pre-wrap bg-white/5 border border-indigo-500/30 text-gray-200 shadow-[0_0_15px_rgba(79,70,229,0.1)] relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent animate-[shimmer_2s_infinite] -translate-x-full" />
-                {response}
-                <span className="inline-block w-1.5 h-3.5 ml-1 bg-indigo-400 animate-pulse align-middle" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <div ref={messagesEndRef} />
-      </main>
-
-      {/* Input Alanı */}
-      <footer className="relative z-10 p-4 border-t border-white/5 bg-[#0a0514]/80 backdrop-blur-xl">
-        <div className="max-w-4xl mx-auto flex gap-3 bg-white/5 border border-white/10 p-2 rounded-2xl focus-within:border-indigo-500/50 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-all">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendPrompt()}
-            placeholder="Ask Beksar..."
-            className="flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-gray-500"
-          />
-          <button
-            onClick={sendPrompt}
-            disabled={!input.trim()}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 rounded-xl text-sm font-medium transition flex items-center justify-center shadow-[0_0_15px_-3px_rgba(79,70,229,0.5)] active:scale-95"
-          >
-            <SendHorizontal className="w-4 h-4 text-white" />
-          </button>
-        </div>
-      </footer>
-
-      {/* Tool Request Modal (Animasyonlu Popup) */}
+      {/* SIDEBAR */}
       <AnimatePresence>
-        {toolRequest && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        {sidebarOpen && (
+          <motion.aside
+            initial={{ x: -260 }}
+            animate={{ x: 0 }}
+            exit={{ x: -260 }}
+            className="w-64 bg-black/60 backdrop-blur-xl border-r border-indigo-500/20 p-5 z-10"
           >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 10 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="bg-[#121826] border border-indigo-500/30 rounded-2xl p-6 w-[450px] shadow-[0_0_40px_-10px_rgba(79,70,229,0.4)] relative overflow-hidden"
-            >
-              {/* Modal İçi Neon Işık */}
-              <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-600/20 blur-[50px] rounded-full pointer-events-none" />
+            <h2 className="text-indigo-400 text-xl font-bold mb-6">
+              BEKSAR
+            </h2>
 
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-2 bg-indigo-500/20 rounded-lg border border-indigo-500/30">
-                    <Wrench className="w-5 h-5 text-indigo-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-white">Tool Request</h3>
-                    <p className="text-xs text-gray-400">Agent wants to execute a command</p>
-                  </div>
+            <div className="space-y-4 text-xs">
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Cpu size={14} />
+                  CPU
                 </div>
-
-                <div className="space-y-3 mb-6">
-                  <div className="bg-black/40 border border-white/5 rounded-xl p-3">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Tool Name</span>
-                    <span className="text-sm text-indigo-300 font-mono">{toolRequest.name}</span>
-                  </div>
-
-                  <div className="bg-black/40 border border-white/5 rounded-xl p-3">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Input Parameters</span>
-                    <p className="text-sm text-gray-300 font-mono break-all whitespace-pre-wrap">{toolRequest.input}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setToolRequest(null)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 py-2.5 rounded-xl text-sm transition"
-                  >
-                    <X className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-300">Reject</span>
-                  </button>
-                  <button
-                    onClick={approveTool}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 py-2.5 rounded-xl text-sm font-medium shadow-[0_0_15px_rgba(79,70,229,0.3)] transition"
-                  >
-                    <Check className="w-4 h-4 text-white" />
-                    <span className="text-white">Approve</span>
-                  </button>
+                <div className="h-2 bg-black rounded">
+                  <div
+                    className="h-2 bg-indigo-500 rounded transition-all"
+                    style={{ width: `${cpuUsage}%` }}
+                  />
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity size={14} />
+                  Memory
+                </div>
+                <div className="h-2 bg-black rounded">
+                  <div
+                    className="h-2 bg-purple-500 rounded transition-all"
+                    style={{ width: `${memoryUsage}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                Tokens: {realTokens ?? tokenCount}
+              </div>
+            </div>
+          </motion.aside>
         )}
       </AnimatePresence>
 
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        /* Özel Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-      `}} />
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col z-10">
+
+        {/* HEADER */}
+        <header className="h-14 flex items-center justify-between px-6 border-b border-indigo-500/20 bg-black/30 backdrop-blur-xl">
+
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+              {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+            </button>
+            <span className="text-green-400 text-xs">AGENT ONLINE</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+
+            <button
+              onClick={toggleMic}
+              className={`p-2 rounded-full transition ${
+                isListening
+                  ? "bg-red-600 shadow-[0_0_25px_red]"
+                  : "hover:bg-indigo-500/20"
+              }`}
+            >
+              <Mic size={18} />
+            </button>
+
+            <button
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={`p-2 rounded-full transition ${
+                voiceEnabled
+                  ? "text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.6)]"
+                  : "text-gray-500"
+              }`}
+            >
+              <Volume2 size={18} />
+            </button>
+
+          </div>
+        </header>
+
+        {/* CHAT */}
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex ${
+                m.role === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
+              <div
+                className={`p-4 rounded-2xl max-w-[70%] ${
+                  m.role === "user"
+                    ? "bg-indigo-600"
+                    : "bg-white/5 border border-indigo-500/30"
+                }`}
+              >
+                {m.content}
+              </div>
+            </div>
+          ))}
+
+          {response && (
+            <div className="bg-white/5 border border-indigo-500/30 p-4 rounded-2xl">
+              {response}
+              <span className="inline-block w-1 h-4 bg-indigo-400 animate-pulse ml-1" />
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </main>
+
+        {/* INPUT */}
+        <footer className="p-4 bg-black/40 border-t border-indigo-500/20">
+          <div className="flex gap-3 bg-black/60 border border-indigo-500/30 p-2 rounded-2xl">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendPrompt()}
+              className="flex-1 bg-transparent outline-none"
+              placeholder="Type command..."
+            />
+            <button
+              onClick={sendPrompt}
+              className="bg-indigo-600 px-4 py-2 rounded-xl"
+            >
+              <SendHorizontal size={16} />
+            </button>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
-
-export default App;
