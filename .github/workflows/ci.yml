@@ -1,0 +1,65 @@
+name: Beksar CI (Vite & Rust)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. Vite (Frontend) İşlemleri
+  frontend:
+    name: Vite Frontend Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # veya projenizde kullandığınız Node versiyonu
+          cache: 'npm' # yarn veya pnpm kullanıyorsanız burayı değiştirin
+
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      - name: Build Frontend
+        run: npm run build
+
+  # 2. Rust & Tauri (Backend) İşlemleri
+  backend:
+    name: Rust Backend Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # Tauri'nin Ubuntu üzerinde derlenebilmesi için gereken sistem kütüphaneleri (Tauri v2 için)
+      - name: Install OS Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          
+      # Derleme sürelerini hızlandırmak için Rust Cache
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          
+      - name: Cargo Check
+        working-directory: src-tauri
+        run: cargo check
+        
+      - name: Cargo Format (Lint)
+        working-directory: src-tauri
+        run: cargo fmt -- --check
+        
+      - name: Cargo Clippy (Lint)
+        working-directory: src-tauri
+        run: cargo clippy -- -D warnings
