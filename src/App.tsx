@@ -1,13 +1,11 @@
 // ⚡ BEKSAR FRONTEND FINAL VERSION
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef,useContext } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   SendHorizontal,
-  User,
-  Bot,
   Mic,
   Volume2,
   PanelLeftClose,
@@ -287,22 +285,20 @@ export default function App() {
 
             <button
               onClick={toggleMic}
-              className={`p-2 rounded-full transition ${
-                isListening
+              className={`p-2 rounded-full transition ${isListening
                   ? "bg-red-600 shadow-[0_0_25px_red]"
                   : "hover:bg-indigo-500/20"
-              }`}
+                }`}
             >
               <Mic size={18} />
             </button>
 
             <button
               onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className={`p-2 rounded-full transition ${
-                voiceEnabled
+              className={`p-2 rounded-full transition ${voiceEnabled
                   ? "text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.6)]"
                   : "text-gray-500"
-              }`}
+                }`}
             >
               <Volume2 size={18} />
             </button>
@@ -315,16 +311,14 @@ export default function App() {
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`flex ${
-                m.role === "user" ? "justify-end" : "justify-start"
-              }`}
+              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                }`}
             >
               <div
-                className={`p-4 rounded-2xl max-w-[70%] ${
-                  m.role === "user"
+                className={`p-4 rounded-2xl max-w-[70%] ${m.role === "user"
                     ? "bg-indigo-600"
                     : "bg-white/5 border border-indigo-500/30"
-                }`}
+                  }`}
               >
                 {m.content}
               </div>
