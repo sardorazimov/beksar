@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+
 import { motion } from "framer-motion";
-import { Bell, Play, PlusSquare, User, Calendar, CheckCircle2 } from "lucide-react";
+import { Bell, PlusSquare, User,  CheckCircle2 } from "lucide-react";
 import { easeOut, easeInOut } from "framer-motion";
 
 export default function LandingPage() {
