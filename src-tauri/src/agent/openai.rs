@@ -1,16 +1,17 @@
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::Value;
+use tauri::{Emitter, WebviewWindow};
 
 pub async fn stream_openai(
     api_key: &str,
     prompt: &str,
-    window: tauri::Window,
+    window: WebviewWindow,
 ) -> Result<u32, String> {
 
     let client = Client::new();
 
-    let mut response = client
+    let response = client
         .post("https://api.openai.com/v1/chat/completions")
         .bearer_auth(api_key)
         .json(&serde_json::json!({
@@ -50,14 +51,14 @@ pub async fn stream_openai(
                         json["choices"][0]["delta"]["content"].as_str()
                     {
                         full_text.push_str(content);
-                        window.emit("stream_chunk", content).unwrap();
+                        window.emit("stream_chunk", content).map_err(|e| e.to_string())?;
                     }
                 }
             }
         }
     }
 
-    window.emit("stream_end", ()).unwrap();
+    window.emit("stream_end", ()).map_err(|e| e.to_string())?;
 
     let estimated_tokens = (full_text.len() / 4) as u32;
 

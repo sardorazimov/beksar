@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 // Kendi Firebase Config'in (Burası sende zaten doğruydu)
 const firebaseConfig = {
