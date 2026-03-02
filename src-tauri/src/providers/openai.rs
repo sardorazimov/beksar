@@ -2,6 +2,7 @@ use crate::providers::LLMProvider;
 use async_trait::async_trait;
 use reqwest::Client;
 use futures_util::StreamExt;
+use tauri::WebviewWindow;
 
 pub struct OpenAIProvider {
     pub api_key: String,
@@ -12,7 +13,7 @@ impl LLMProvider for OpenAIProvider {
     async fn stream(
         &self,
         messages: Vec<serde_json::Value>,
-        window: tauri::Window,
+        window: WebviewWindow,
     ) -> Result<String, String> {
 
         let client = Client::new();
@@ -46,7 +47,8 @@ impl LLMProvider for OpenAIProvider {
                     let data = line.trim_start_matches("data: ").trim();
 
                     if data == "[DONE]" {
-                        window.emit("stream_end", "done").unwrap();
+                        use tauri::Emitter;
+                        window.emit("stream_end", "done").map_err(|e| e.to_string())?;
                         return Ok(final_text);
                     }
 
@@ -57,7 +59,8 @@ impl LLMProvider for OpenAIProvider {
                             json["choices"][0]["delta"]["content"].as_str()
                         {
                             final_text.push_str(content);
-                            window.emit("stream_chunk", content).unwrap();
+                            use tauri::Emitter;
+                            window.emit("stream_chunk", content).map_err(|e| e.to_string())?;
                         }
                     }
                 }
