@@ -8,7 +8,7 @@
   A native desktop AI agent that lets you chat with <strong>GPT-4o-mini</strong>, stream responses in real time, and safely execute tools — all from a beautiful dark UI.
 </p>
 
----
+
 
 ## ✨ Features
 

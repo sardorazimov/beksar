@@ -25,14 +25,14 @@ export default function Agent() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. GÜVENLİK KONTROLÜ (Sayfa açıldığında giriş yapılmış mı?)
+  // Sayfa yüklendiğinde kullanıcı kontrolü yap
   useEffect(() => {
     const savedName = localStorage.getItem("beksar_user_name");
     const savedPhoto = localStorage.getItem("beksar_user_photo");
     const savedKey = localStorage.getItem("beksar_api_key");
     
-    // Giriş yapmamış adam bu sayfaya URL'den girmeye çalışırsa Login'e şutla
     if (!savedName) {
+      // Eğer kullanıcı giriş yapmamışsa, login'e at.
       navigate("/login");
       return;
     }
@@ -40,7 +40,7 @@ export default function Agent() {
     setUserName(savedName);
     setUserPhoto(savedPhoto || "");
 
-    // Giriş yapmış ama API Key girmemişse Modalı aç
+    // API Key yoksa modalı aç
     if (!savedKey) {
       setShowApiModal(true);
     }
@@ -48,7 +48,7 @@ export default function Agent() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, response]);
 
-  // 2. TAURİ DİNLEYİCİLERİ (Sadece API Modalı kapalıyken çalışsın)
+  // Tauri Listeners
   useEffect(() => {
     if (showApiModal) return;
 
@@ -129,12 +129,7 @@ export default function Agent() {
 
       <div className="relative z-10 flex items-center justify-between px-6 pt-8 pb-2 opacity-60 border-b border-white/5">
           <span className="text-xs tracking-widest uppercase font-semibold text-indigo-400 flex items-center gap-2"><Sparkles className="w-3 h-3"/> BEKSAR.AI</span>
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition" onClick={() => {
-              // ÇIKIŞ YAPMA BUTONU:
-              localStorage.removeItem("beksar_user_name");
-              localStorage.removeItem("beksar_user_photo");
-              navigate("/"); // Çıkış yapınca landing'e atar
-          }}>
+          <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             <span className="text-xs text-gray-300">{userName}</span>
             {userPhoto ? <img src={userPhoto} alt="Profile" className="w-6 h-6 rounded-full border border-white/20" /> : <User className="w-5 h-5 text-gray-400" />}
