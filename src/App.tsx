@@ -72,19 +72,15 @@ export default function App() {
   const sendPrompt = async () => {
     if (!input.trim()) return;
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        role: "user",
-        content: input,
-      },
-    ]);
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: "user",
+      content: input
+    }]);
 
+    setResponse(""); // sadece başta
     await invoke("stream_prompt", { prompt: input });
-
     setInput("");
-    setResponse("");
   };
 
   return (
@@ -115,8 +111,8 @@ export default function App() {
             >
               <div
                 className={`px-4 py-3 rounded-2xl text-sm max-w-[70%] ${msg.role === "user"
-                    ? "bg-indigo-600"
-                    : "bg-white/5 border border-white/10"
+                  ? "bg-indigo-600"
+                  : "bg-white/5 border border-white/10"
                   }`}
               >
                 {msg.content}
